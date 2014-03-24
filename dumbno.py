@@ -1,4 +1,8 @@
 from jsonrpclib import Server
+import socket
+import time
+import select
+import json
 
 def parse_entry(line):
     #for now I just need what sequence numbers are used and the age
@@ -49,7 +53,7 @@ class ACLMgr:
         self.seq = 20
         self.max = 10000
         self.switch = Server( "https://admin:pw@host/command-api" )
-        self.acls = self.refresh()
+        self.remove_expired()
 
     def refresh(self):
         cmds = [
@@ -63,7 +67,7 @@ class ACLMgr:
         self.rules = set(x["rule"] for x in acls)
         print "Current ACLS"
         for x in acls:
-            print x
+            print "%(seq)r %(rule)r %(matches)r %(ago)r" % x
         return acls
 
     def calc_next(self):
@@ -88,11 +92,14 @@ class ACLMgr:
             "%d deny %s" % (a, rule_a),
             "%d deny %s" % (b, rule_b),
         ]
+        print "sending:", "\n".join(cmds)
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
         self.rules.update([rule_a, rule_b])
         return True
 
     def remove_acls(self, seqs):
+        if not seqs:
+            return
         cmds = [
             "enable",
             "configure",
@@ -100,21 +107,52 @@ class ACLMgr:
         ]
         for s in seqs:
             cmds.append("no %s" % s)
+        print "sending:", "\n".join(cmds)
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
-
-        self.acls = self.refresh()
 
     def remove_expired(self):
         acls = self.refresh()
-        to_remove = [x["seq"] for x in self.acls if is_expired(x)]
+        to_remove = [x["seq"] for x in acls if is_expired(x)]
         print "should remove", to_remove
         self.remove_acls(to_remove)
         
 
+class ACLSvr:
+    def __init__(self, mgr):
+        self.mgr = mgr
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(('', 9000))
+        self.last_check = time.time()
+
+    def check(self):
+        if time.time() - self.last_check > 60:
+            print "Checking..."
+            self.mgr.remove_expired()
+            self.last_check = time.time()
+
+    def run(self):
+        while True:
+            readable, _, _ = select.select([self.sock], [], [], 5)
+            if readable:
+                data, addr = self.sock.recvfrom(1024)
+                record = json.loads(data)
+                self.mgr.add_acl(**record)
+            self.check()
+            time.sleep(2)
+
+class ACLClient:
+    def __init__(self, host, port=9000):
+        self.addr = (host, port)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+    def add_acl(self, src, dst, proto="ip", sport=None, dport=None):
+        msg = json.dumps(dict(src=src,dst=dst,proto=proto,sport=sport,dport=dport))
+        self.sock.sendto(msg, self.addr)
+
 def main():
     mgr = ACLMgr()
-    #print mgr.add_acl("33.33.33.33", "44.44.44.46", "tcp", 14531, 80)
-    mgr.remove_expired()
+    svr = ACLSvr(mgr)
+    svr.run()
 
 if __name__ == "__main__":
     main()
