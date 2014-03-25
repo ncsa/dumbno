@@ -86,7 +86,8 @@ class ACLMgr:
 
         if rule_a in self.rules or rule_b in self.rules:
             return False
-        a = self.calc_next()
+        self.seq = self.calc_next()
+        a = self.seq
         b = a + 1
 
         cmds = [
