@@ -24,7 +24,7 @@ def parse_entry(line):
     }
 
 def parse_acl(text):
-    lines = [l for l in text.splitlines() if 'ip' in l]
+    lines = [l for l in text.splitlines() if 'host' in l]
     return map(parse_entry, lines)
 
 def make_rules(s, d, proto="ip", sp=None, dp=None):
