@@ -46,7 +46,7 @@ def is_expired(acl):
     if 'ago' not in acl:
         return True
 
-    return acl['ago'] > '0:10:00'
+    return acl['ago'] > '0:05:00'
 
 class ACLMgr:
     def __init__(self):
