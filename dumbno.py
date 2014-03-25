@@ -46,7 +46,7 @@ def is_expired(acl):
     if 'ago' not in acl:
         return True
 
-    return 'ago' > '0:10:00'
+    return acl['ago'] > '0:10:00'
 
 class ACLMgr:
     def __init__(self):
@@ -65,6 +65,9 @@ class ACLMgr:
         acls = parse_acl(acls)
         self.used = set(x["seq"] for x in acls)
         self.rules = set(x["rule"] for x in acls)
+        return acls
+
+    def dump(self, acls):
         print "Current ACLS"
         for x in acls:
             print "%(seq)r %(rule)r %(matches)r %(ago)r" % x
@@ -73,6 +76,7 @@ class ACLMgr:
     def calc_next(self):
         wrapped = False
         for x in range(self.seq, self.max) + range(0, self.seq):
+            if x % 2 == 0: continue #i want an odd number
             if x not in self.used:
                 return x
         raise Exception("Too many ACLS?")
@@ -113,8 +117,16 @@ class ACLMgr:
     def remove_expired(self):
         acls = self.refresh()
         to_remove = [x["seq"] for x in acls if is_expired(x)]
+        for x in to_remove:
+            if x % 2 == 1:
+                to_remove.add(x+1)
+            else:
+                to_remove.add(x-1)
         print "should remove", to_remove
-        self.remove_acls(to_remove)
+        if to_remove:
+            self.remove_acls(to_remove)
+            acls = self.refresh()
+            self.dump(acls)
         
 
 class ACLSvr:
