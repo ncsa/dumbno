@@ -116,8 +116,8 @@ class ACLMgr:
 
     def remove_expired(self):
         acls = self.refresh()
-        to_remove = [x["seq"] for x in acls if is_expired(x)]
-        for x in to_remove:
+        to_remove = set(x["seq"] for x in acls if is_expired(x))
+        for x in list(to_remove):
             if x % 2 == 1:
                 to_remove.add(x+1)
             else:
