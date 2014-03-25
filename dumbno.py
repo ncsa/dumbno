@@ -43,7 +43,7 @@ def make_rules(s, d, proto="ip", sp=None, dp=None):
 def is_expired(acl):
     if 'any any' in acl['rule']:
         return False
-    if 'ago' not in acl:
+    if acl['ago'] is None:
         return True
 
     return acl['ago'] > '0:02:00'
@@ -67,11 +67,12 @@ class ACLMgr:
         self.rules = set(x["rule"] for x in acls)
         return acls
 
-    def dump(self, acls):
-        print "Current ACLS"
+    def dump(self, acls, msg="Current ACLS"):
+        if not acls:
+            return
+        print msg
         for x in acls:
             print "%(seq)r %(rule)r %(matches)r %(ago)r" % x
-        return acls
 
     def calc_next(self):
         wrapped = False
@@ -97,9 +98,10 @@ class ACLMgr:
             "%d deny %s" % (a, rule_a),
             "%d deny %s" % (b, rule_b),
         ]
-        print "sending:", "\n".join(cmds)
+        print time.ctime(), "sending:", "\n".join(cmds)
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
         self.rules.update([rule_a, rule_b])
+        self.used.update([a,b])
         return True
 
     def remove_acls(self, seqs):
@@ -112,18 +114,21 @@ class ACLMgr:
         ]
         for s in seqs:
             cmds.append("no %s" % s)
-        print "sending:", "\n".join(cmds)
+        print time.ctime(), "sending:", "\n".join(cmds)
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
 
     def remove_expired(self):
         acls = self.refresh()
-        to_remove = set(x["seq"] for x in acls if is_expired(x))
+
+        to_remove = filter(is_expired, acls)
+        self.dump(to_remove, "REMOVE:")
+        to_remove = set(x['seq'] for x in to_remove)
+
         for x in list(to_remove):
             if x % 2 == 1:
                 to_remove.add(x+1)
             else:
                 to_remove.add(x-1)
-        print "should remove", to_remove
         if to_remove:
             self.remove_acls(to_remove)
             acls = self.refresh()
@@ -135,11 +140,10 @@ class ACLSvr:
         self.mgr = mgr
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('', 9000))
-        self.last_check = time.time()
+        self.last_check = 0
 
     def check(self):
         if time.time() - self.last_check > 60:
-            print "Checking..."
             self.mgr.remove_expired()
             self.last_check = time.time()
 
@@ -151,7 +155,6 @@ class ACLSvr:
                 record = json.loads(data)
                 self.mgr.add_acl(**record)
             self.check()
-            time.sleep(2)
 
 class ACLClient:
     def __init__(self, host, port=9000):
