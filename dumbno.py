@@ -3,6 +3,7 @@ import socket
 import time
 import select
 import json
+import sys
 
 def parse_entry(line):
     #for now I just need what sequence numbers are used and the age
@@ -40,18 +41,11 @@ def make_rules(s, d, proto="ip", sp=None, dp=None):
 
     return rule_a, rule_b
 
-def is_expired(acl):
-    if 'any any' in acl['rule']:
-        return False
-    if acl['ago'] is None:
-        return True
-
-    return acl['ago'] > '0:01:00'
-
 class ACLMgr:
     def __init__(self):
-        self.seq = 20
+        self.min = 500
         self.max = 10000
+        self.seq = self.min + 1
         self.switch = Server( "https://admin:pw@host/command-api" )
         self.remove_expired()
 
@@ -67,16 +61,14 @@ class ACLMgr:
         self.rules = set(x["rule"] for x in acls)
         return acls
 
-    def dump(self, acls, msg="Current ACLS"):
+    def dump(self, acls, tag="CURRENT:"):
         if not acls:
             return
-        print msg
         for x in acls:
-            print "%(seq)r %(rule)r %(matches)r %(ago)r" % x
+            print tag, "%(seq)s %(rule)r %(matches)s %(ago)s" % x
 
     def calc_next(self):
-        wrapped = False
-        for x in range(self.seq, self.max) + range(0, self.seq):
+        for x in range(self.seq, self.max) + range(self.min, self.seq):
             if x % 2 == 0: continue #i want an odd number
             if x not in self.used:
                 return x
@@ -114,13 +106,24 @@ class ACLMgr:
         ]
         for s in seqs:
             cmds.append("no %s" % s)
-        print time.ctime(), "sending:", "\n".join(cmds)
+        #print time.ctime(), "sending:", "\n".join(cmds)
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
+
+    def is_expired(self, acl):
+        if acl['seq'] <= self.min or acl['seq'] >= self.max:
+            return False
+        if 'any any' in acl['rule']:
+            return False
+        if acl['ago'] is None:
+            return True
+
+        return acl['ago'] > '0:01:00'
+
 
     def remove_expired(self):
         acls = self.refresh()
 
-        to_remove = filter(is_expired, acls)
+        to_remove = filter(self.is_expired, acls)
         self.dump(to_remove, "REMOVE:")
         to_remove = set(x['seq'] for x in to_remove)
 
@@ -132,7 +135,7 @@ class ACLMgr:
         if to_remove:
             self.remove_acls(to_remove)
             acls = self.refresh()
-            self.dump(acls)
+            #self.dump(acls)
         
 
 class ACLSvr:
@@ -155,6 +158,7 @@ class ACLSvr:
                 record = json.loads(data)
                 self.mgr.add_acl(**record)
             self.check()
+            sys.stdout.flush()
 
 class ACLClient:
     def __init__(self, host, port=9000):
