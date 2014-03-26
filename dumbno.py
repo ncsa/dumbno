@@ -28,18 +28,14 @@ def parse_acl(text):
     lines = [l for l in text.splitlines() if 'host' in l]
     return map(parse_entry, lines)
 
-def make_rules(s, d, proto="ip", sp=None, dp=None):
+def make_rule(s, d, proto="ip", sp=None, dp=None):
     a = "host %s" % s 
     ap = sp and "eq %s" % sp or ""
 
     b = "host %s" % d
     bp = dp and "eq %s" % dp or ""
 
-
-    rule_a = "%s %s %s %s %s" % (proto, a, ap, b, bp)
-    rule_b = "%s %s %s %s %s" % (proto, b, bp, a, ap)
-
-    return rule_a, rule_b
+    return "%s %s %s %s %s" % (proto, a, ap, b, bp)
 
 class ACLMgr:
     def __init__(self):
@@ -75,25 +71,23 @@ class ACLMgr:
         raise Exception("Too many ACLS?")
 
     def add_acl(self, src, dst, proto="ip", sport=None, dport=None):
-        rule_a, rule_b = make_rules(src, dst, proto, sport, dport)
+        rule = make_rule(src, dst, proto, sport, dport)
 
-        if rule_a in self.rules or rule_b in self.rules:
+        if rule in self.rules:
             return False
+
         self.seq = self.calc_next()
-        a = self.seq
-        b = a + 1
 
         cmds = [
             "enable",
             "configure",
             "ip access-list bulk",
-            "%d deny %s" % (a, rule_a),
-            "%d deny %s" % (b, rule_b),
+            "%d deny %s" % (self.seq, rule),
         ]
         print time.ctime(), "sending:", "\n".join(cmds)
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
-        self.rules.update([rule_a, rule_b])
-        self.used.update([a,b])
+        self.rules.add(rule)
+        self.used.add(self.seq)
         return True
 
     def remove_acls(self, seqs):
