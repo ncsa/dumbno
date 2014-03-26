@@ -11,7 +11,7 @@ def parse_entry(line):
     seq = int(parts[0])
     if parts[-1] == "ago":
         ago = parts[-2]
-        matches = parts[-3]
+        matches = parts[-3].strip(",")
         rule = ' '.join(parts[2:-4])
     else:
         ago = matches = None
