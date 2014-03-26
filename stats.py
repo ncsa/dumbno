@@ -23,7 +23,7 @@ def main():
         ibw = (ibytes - l_ibytes) *8 / INT / 1024 / 1024
         ebw = (ebytes - l_ebytes) *8 / INT / 1024 / 1024
 
-        print "mbps: in=%d out=%d saved=%d" %(ibw, ebw, ibw-ebw)
+        print "mbps: in=%d out=%d filtered=%d" %(ibw, ebw, ibw-ebw)
 
         l_ibytes, l_ebytes = ibytes, ebytes
 
