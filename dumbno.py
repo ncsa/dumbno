@@ -61,7 +61,7 @@ class ACLMgr:
         if not acls:
             return
         for x in acls:
-            print tag, "%(seq)s %(rule)r %(matches)s %(ago)s" % x
+            print time.ctime(), tag, "%(seq)s %(rule)r %(matches)s %(ago)s" % x
 
     def calc_next(self):
         for x in range(self.seq, self.max) + range(self.min, self.seq):
@@ -84,7 +84,7 @@ class ACLMgr:
             "ip access-list bulk",
             "%d deny %s" % (self.seq, rule),
         ]
-        print time.ctime(), "sending:", "\n".join(cmds)
+        print time.ctime(), "ADD", rule
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
         self.rules.add(rule)
         self.used.add(self.seq)
