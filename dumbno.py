@@ -121,11 +121,6 @@ class ACLMgr:
         self.dump(to_remove, "REMOVE:")
         to_remove = set(x['seq'] for x in to_remove)
 
-        for x in list(to_remove):
-            if x % 2 == 1:
-                to_remove.add(x+1)
-            else:
-                to_remove.add(x-1)
         if to_remove:
             self.remove_acls(to_remove)
             acls = self.refresh()
