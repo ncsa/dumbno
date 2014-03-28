@@ -135,7 +135,7 @@ class ACLSvr:
         self.last_check = 0
 
     def check(self):
-        if time.time() - self.last_check > 60:
+        if time.time() - self.last_check > 30:
             self.mgr.remove_expired()
             self.last_check = time.time()
 
