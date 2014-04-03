@@ -1,7 +1,6 @@
 from jsonrpclib import Server
 import socket
 import time
-import select
 import json
 import sys
 
@@ -132,6 +131,7 @@ class ACLSvr:
         self.mgr = mgr
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('', 9000))
+        self.sock.settimeout(5)
         self.last_check = 0
 
     def check(self):
@@ -141,22 +141,34 @@ class ACLSvr:
 
     def run(self):
         while True:
-            readable, _, _ = select.select([self.sock], [], [], 5)
-            if readable:
-                data, addr = self.sock.recvfrom(1024)
-                record = json.loads(data)
-                self.mgr.add_acl(**record)
             self.check()
             sys.stdout.flush()
+
+            try :
+                data, addr = self.sock.recvfrom(1024)
+            except socket.timeout:
+                continue
+
+            record = json.loads(data)
+            if '129.21.16' in record['src'] or '129.21.16' in record['dst']: #no idea what is up with this host
+                record['sport'] = record['dport'] = None
+            self.mgr.add_acl(**record)
+            self.sock.sendto("ok", addr)
 
 class ACLClient:
     def __init__(self, host, port=9000):
         self.addr = (host, port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.settimeout(1)
     
     def add_acl(self, src, dst, proto="ip", sport=None, dport=None):
         msg = json.dumps(dict(src=src,dst=dst,proto=proto,sport=sport,dport=dport))
         self.sock.sendto(msg, self.addr)
+        try :
+            data, addr = self.sock.recvfrom(1024)
+            return data
+        except socket.timeout:
+            return None
 
 def main():
     mgr = ACLMgr()
