@@ -3,6 +3,8 @@ import socket
 import time
 import json
 import sys
+import logging
+
 
 def parse_entry(line):
     #for now I just need what sequence numbers are used and the age
@@ -37,7 +39,8 @@ def make_rule(s, d, proto="ip", sp=None, dp=None):
     return "%s %s %s %s %s" % (proto, a, ap, b, bp)
 
 class ACLMgr:
-    def __init__(self):
+    def __init__(self, logger):
+        self.logger = logger
         self.min = 500
         self.max = 10000
         self.seq = self.min + 1
@@ -56,11 +59,12 @@ class ACLMgr:
         self.rules = set(x["rule"] for x in acls)
         return acls
 
-    def dump(self, acls, tag="CURRENT:"):
+    def dump(self, acls, op="CURRENT"):
         if not acls:
             return
         for x in acls:
-            print time.ctime(), tag, "%(seq)s %(rule)r %(matches)s %(ago)s" % x
+            x["op"] = op
+            self.logger.info('op=%(op)s seq=%(seq)s rule="%(rule)s" matches=%(matches)s ago=%(ago)s' % x)
 
     def calc_next(self):
         for x in range(self.seq, self.max) + range(self.min, self.seq):
@@ -83,7 +87,7 @@ class ACLMgr:
             "ip access-list bulk",
             "%d deny %s" % (self.seq, rule),
         ]
-        print time.ctime(), "ADD", rule
+        self.logger.info("op=ADD seq=%s rule=%r" % (self.seq, rule))
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
         self.rules.add(rule)
         self.used.add(self.seq)
@@ -99,7 +103,7 @@ class ACLMgr:
         ]
         for s in seqs:
             cmds.append("no %s" % s)
-        #print time.ctime(), "sending:", "\n".join(cmds)
+        self.logger.debug("Sending:" + "\n".join(cmds))
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
 
     def is_expired(self, acl):
@@ -117,7 +121,7 @@ class ACLMgr:
         acls = self.refresh()
 
         to_remove = filter(self.is_expired, acls)
-        self.dump(to_remove, "REMOVE:")
+        self.dump(to_remove, op="REMOVE")
         to_remove = set(x['seq'] for x in to_remove)
 
         if to_remove:
@@ -171,7 +175,11 @@ class ACLClient:
             return None
 
 def main():
-    mgr = ACLMgr()
+    format = '%(asctime)-15s %(levelname)s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=format)
+    logger = logging.getLogger("dumbno")
+    logger.info("Started")
+    mgr = ACLMgr(logger)
     svr = ACLSvr(mgr)
     svr.run()
 
