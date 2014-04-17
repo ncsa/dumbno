@@ -40,8 +40,8 @@ def make_rule(s, d, proto="ip", sp=None, dp=None):
 
 class ACLMgr:
     def __init__(self, ports, logger):
-        self.acls = dict(("bulk_%s" % port, []) for port in ports)
         self.ports = ports
+        self.acls = dict.fromkeys(ports.values(), [])
         self.logger = logger
 
         self.min = 500
@@ -62,12 +62,21 @@ class ACLMgr:
         acls = response[1]['output']
         return bool(acls.strip())
 
-    def setup_acl(self, port):
-        acl = "bulk_%s" % port
+    def port_has_acl(self, port, acl):
+        cmds = [
+            "enable",
+            "show running-config interfaces %s" % port,
+        ]
+        response = self.switch.runCmds(version=1, cmds=cmds, format='text')
+        output = response[1]['output']
+        expected_line = 'access-group %s in' % acl
+        return expected_line in output
+
+    def setup_acl(self,  acl):
         if self.acl_exists(acl):
             return True
 
-        self.logger.info("Setting up ACL for port %s", port)
+        self.logger.info("Setting up ACL %s", acl)
         cmds = [
             "enable",
             "configure",
@@ -80,11 +89,26 @@ class ACLMgr:
             "interface %s" % port,
             "ip access-group %s in" % acl,
         ]
-        response = self.switch.runCmds(version=1, cmds=cmds, format='text')
+        response = self.switch.runCmds(version=1, cmds=cmds)
+
+    def setup_port_acl(self, port, acl):
+        self.setup_acl(acl)
+        if self.port_has_acl(port, acl):
+            return True
+
+        self.logger.info("Setting up ACL %s for port %s", acl, port)
+        cmds = [
+            "enable",
+            "configure",
+            "interface %s" % port,
+            "ip access-group %s in" % acl,
+        ]
+        response = self.switch.runCmds(version=1, cmds=cmds)
 
     def setup(self):
-        for port in self.ports:
-            self.setup_acl(port)
+        self.logger.info("Setup...")
+        for port, acl in self.ports.items():
+            self.setup_port_acl(port, acl)
 
     def refresh(self):
         cmds = [
@@ -203,6 +227,7 @@ class ACLSvr:
             self.last_check = time.time()
 
     def run(self):
+        self.mgr.logger.info("Ready..")
         while True:
             self.check()
             sys.stdout.flush()
@@ -234,13 +259,22 @@ class ACLClient:
             return None
 
 def main():
-    PORTS = ["Et1", "Et2", "Et3", "Et4", "Et5", "Et6", "Et7", "Et8"]
+    port_mapping = {
+        "Et1": "bulk_1",
+        "Et2": "bulk_2",
+        "Et3": "bulk_3",
+        "Et4": "bulk_4",
+        "Et5": "bulk_5",
+        "Et6": "bulk_6",
+        "Et7": "bulk_7",
+        "Et8": "bulk_8",
+    }
 
     format = '%(asctime)-15s %(levelname)s %(message)s'
     logging.basicConfig(level=logging.INFO, format=format)
     logger = logging.getLogger("dumbno")
     logger.info("Started")
-    mgr = ACLMgr(PORTS, logger)
+    mgr = ACLMgr(port_mapping, logger)
     svr = ACLSvr(mgr)
     svr.run()
 
