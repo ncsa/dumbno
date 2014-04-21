@@ -86,8 +86,6 @@ class ACLMgr:
             "20 permit tcp any any syn",
             "30 permit tcp any any rst",
             "100001 permit ip any any",
-            "interface %s" % port,
-            "ip access-group %s in" % acl,
         ]
         response = self.switch.runCmds(version=1, cmds=cmds)
 
