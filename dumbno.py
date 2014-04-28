@@ -236,8 +236,6 @@ class ACLSvr:
                 continue
 
             record = json.loads(data)
-            if '129.21.16' in record['src'] or '129.21.16' in record['dst']: #no idea what is up with this host
-                record['sport'] = record['dport'] = None
             self.mgr.add_acl(**record)
             self.sock.sendto("ok", addr)
 
