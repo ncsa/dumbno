@@ -3,7 +3,7 @@ No elephant flows!
 Usage
 =====
 
-Copy docs/example\_dumbno.cfg and edit to update your environment.
+Copy docs/example\_dumbno.cfg and edit to match your environment.
 
 Start:
 
