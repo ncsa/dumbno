@@ -4,6 +4,7 @@ import time
 import json
 import sys
 import logging
+import ConfigParser
 
 
 def parse_entry(line):
@@ -39,7 +40,8 @@ def make_rule(s, d, proto="ip", sp=None, dp=None):
     return "%s %s %s %s %s" % (proto, a, ap, b, bp)
 
 class ACLMgr:
-    def __init__(self, ports, logger):
+    def __init__(self, ip, user, password, ports, logger):
+        self.uri = "https://%s:%s@%s/command-api" % (user, password, ip)
         self.ports = ports
         self.acls = dict.fromkeys(ports.values(), [])
         self.logger = logger
@@ -47,7 +49,7 @@ class ACLMgr:
         self.min = 500
         self.max = 100000
         self.seq = self.min + 1
-        self.switch = Server( "https://admin:pw@host/command-api" )
+        self.switch = Server( self.uri)
 
         self.setup()
         self.remove_expired()
@@ -254,26 +256,30 @@ class ACLClient:
         except socket.timeout:
             return None
 
-def main():
-    port_mapping = {
-        "Et1": "bulk_1",
-        "Et2": "bulk_2",
-        "Et3": "bulk_3",
-        "Et4": "bulk_4",
-        "Et5": "bulk_5",
-        "Et6": "bulk_6",
-        "Et7": "bulk_7",
-        "Et8": "bulk_8",
-    }
-
+def launch(config):
     format = '%(asctime)-15s %(levelname)s %(message)s'
     logging.basicConfig(level=logging.INFO, format=format)
     logger = logging.getLogger("dumbno")
     logger.info("Started")
-    mgr = ACLMgr(port_mapping, logger)
+    mgr = ACLMgr(logger=logger, **config)
     svr = ACLSvr(mgr)
     svr.run()
 
+def main(cfg_file):
+    cfg = ConfigParser.ConfigParser()
+    read = cfg.read([cfg_file])
+    if not read:
+        sys.stderr.write("Error Reading config file %s\n" % cfg_file)
+        sys.exit(1)
+
+    config = dict(cfg.items('switch'))
+    config["ports"] = dict(cfg.items('ports'))
+    launch(config)
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) != 2:
+        sys.stderr.write("Usage: %s dumbno.ini\n" % sys.argv[0])
+        sys.exit(1)
+    cfg_file = sys.argv[1]
+    main(cfg_file)
 
