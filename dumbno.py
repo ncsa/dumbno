@@ -140,7 +140,7 @@ class ACLMgr:
             return
         for x in acls:
             x["op"] = op
-            self.logger.info('op=%(op)s seq=%(seq)s rule="%(rule)s" matches=%(matches)s ago=%(ago)s' % x)
+            self.logger.info('op=%(op)s acl=%(acl)s seq=%(seq)s rule="%(rule)s" matches=%(matches)s ago=%(ago)s' % x)
 
     def calc_next(self):
         for x in range(self.seq, self.max) + range(self.min, self.seq):
@@ -201,6 +201,8 @@ class ACLMgr:
         to_remove_flat = []
         for acl, entries in acls.items():
             removable = filter(self.is_expired, entries)
+            for entry in removable:
+                entry['acl'] = acl
             to_remove[acl] = removable
             to_remove_flat.extend(removable)
 
