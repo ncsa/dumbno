@@ -5,7 +5,11 @@ Usage
 
 Copy examples/example\_dumbno.cfg and edit to match your environment.
 
-Start:
+Run initial setup and start:
+
+    ./dumbno.py dumbno.cfg setup
+
+Later runs:
 
     ./dumbno.py dumbno.cfg
 

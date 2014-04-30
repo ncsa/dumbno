@@ -51,10 +51,6 @@ class ACLMgr:
         self.seq = self.min + 1
         self.switch = Server( self.uri)
 
-        self.setup()
-        self.remove_expired()
-
-
     def acl_exists(self, acl):
         cmds = [
             "enable",
@@ -258,16 +254,19 @@ class ACLClient:
         except socket.timeout:
             return None
 
-def launch(config):
+def launch(config, setup=False):
     format = '%(asctime)-15s %(levelname)s %(message)s'
     logging.basicConfig(level=logging.INFO, format=format)
     logger = logging.getLogger("dumbno")
     logger.info("Started")
     mgr = ACLMgr(logger=logger, **config)
+    if setup:
+        mgr.setup()
+
     svr = ACLSvr(mgr)
     svr.run()
 
-def main(cfg_file):
+def main(cfg_file, setup=False):
     cfg = ConfigParser.ConfigParser()
     read = cfg.read([cfg_file])
     if not read:
@@ -276,12 +275,13 @@ def main(cfg_file):
 
     config = dict(cfg.items('switch'))
     config["ports"] = dict(cfg.items('ports'))
-    launch(config)
+    launch(config, setup)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.stderr.write("Usage: %s dumbno.ini\n" % sys.argv[0])
+    if len(sys.argv) < 2:
+        sys.stderr.write("Usage: %s dumbno.ini [setup]\n" % sys.argv[0])
         sys.exit(1)
     cfg_file = sys.argv[1]
-    main(cfg_file)
+    setup = len(sys.argv) == 3 and sys.argv[2] == 'setup'
+    main(cfg_file, setup)
 
