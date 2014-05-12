@@ -40,9 +40,10 @@ def make_rule(s, d, proto="ip", sp=None, dp=None):
     return "%s %s %s %s %s" % (proto, a, ap, b, bp)
 
 class ACLMgr:
-    def __init__(self, ip, user, password, ports, logger):
+    def __init__(self, ip, user, password, ports, egress_ports, logger):
         self.uri = "https://%s:%s@%s/command-api" % (user, password, ip)
         self.ports = ports
+        self.egress_ports = egress_ports
         self.acls = dict.fromkeys(ports.values(), [])
         self.logger = logger
 
@@ -209,7 +210,30 @@ class ACLMgr:
             acls = self.refresh()
             self.logger.info("total_acls=%d", self.total_acls)
             #self.dump(acls)
-        
+
+    def get_stats(self):
+        response = self.switch.runCmds(version=1, cmds=["show interfaces counters"], format='json')[0]
+        ifs = response['interfaces']
+
+        ibytes = sum(ifs[x]['inOctets'] for x in self.ports)
+        ebytes = sum(ifs[x]['outOctets'] for x in self.egress_ports)
+        return ibytes, ebytes
+
+    def stats_loop(self, interval=5):
+        l_ibytes, l_ebytes = self.get_stats()
+        gig = 1024**3
+        self.logger.info("total gigs: in=%d out=%d filtered=%d", l_ibytes/gig, l_ebytes/gig, (l_ibytes-l_ebytes)/gig)
+
+        while True:
+            time.sleep(interval)
+            ibytes, ebytes = self.get_stats()
+
+            ibw = (ibytes - l_ibytes) *8 / interval / 1024 / 1024
+            ebw = (ebytes - l_ebytes) *8 / interval / 1024 / 1024
+
+            self.logger.info("mbps: in=%d out=%d filtered=%d", ibw, ebw, ibw-ebw)
+
+            l_ibytes, l_ebytes = ibytes, ebytes
 
 class ACLSvr:
     def __init__(self, mgr):
@@ -254,7 +278,23 @@ class ACLClient:
         except socket.timeout:
             return None
 
-def launch(config, setup=False):
+def read_config(cfg_file):
+    cfg = ConfigParser.ConfigParser()
+    cfg.optionxform=str
+    read = cfg.read([cfg_file])
+    if not read:
+        sys.stderr.write("Error Reading config file %s\n" % cfg_file)
+        sys.exit(1)
+
+    config = dict(cfg.items('switch'))
+    config["ports"] = dict(cfg.items('ports'))
+    config["egress_ports"] = []
+    if cfg.has_section('egress_ports'):
+        config["egress_ports"] = dict(cfg.items('egress_ports'))
+
+    return config
+
+def launch(config, setup=False, stats=False):
     format = '%(asctime)-15s %(levelname)s %(message)s'
     logging.basicConfig(level=logging.INFO, format=format)
     logger = logging.getLogger("dumbno")
@@ -263,25 +303,31 @@ def launch(config, setup=False):
     if setup:
         mgr.setup()
 
+    if stats:
+        return mgr.stats()
+
     svr = ACLSvr(mgr)
     svr.run()
 
-def main(cfg_file, setup=False):
-    cfg = ConfigParser.ConfigParser()
-    read = cfg.read([cfg_file])
-    if not read:
-        sys.stderr.write("Error Reading config file %s\n" % cfg_file)
-        sys.exit(1)
 
-    config = dict(cfg.items('switch'))
-    config["ports"] = dict(cfg.items('ports'))
-    launch(config, setup)
+def run_stats(cfg_file, setup=False):
+    format = '%(asctime)-15s %(levelname)s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=format)
+    logger = logging.getLogger("dumbno")
+    mgr = ACLMgr(logger=logger, **config)
+    return mgr.stats_loop()
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        sys.stderr.write("Usage: %s dumbno.ini [setup]\n" % sys.argv[0])
+        sys.stderr.write("Usage: %s dumbno.ini [setup|stats]\n" % sys.argv[0])
         sys.exit(1)
     cfg_file = sys.argv[1]
     setup = len(sys.argv) == 3 and sys.argv[2] == 'setup'
-    main(cfg_file, setup)
+    stats = len(sys.argv) == 3 and sys.argv[2] == 'stats'
+
+    config = read_config(cfg_file)
+    if stats:
+        run_stats(config)
+    else:
+        launch(config, setup=setup)
 
