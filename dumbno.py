@@ -7,29 +7,6 @@ import logging
 import ConfigParser
 
 
-def parse_entry(line):
-    #for now I just need what sequence numbers are used and the age
-    parts = line.replace("[","").replace("]","").split()
-    seq = int(parts[0])
-    if parts[-1] == "ago":
-        ago = parts[-2]
-        matches = parts[-3].strip(",")
-        rule = ' '.join(parts[2:-4])
-    else:
-        ago = matches = None
-        rule = ' '.join(parts[2:])
-
-    return {
-        "seq": seq,
-        "rule": rule,
-        "ago": ago,
-        "matches": matches,
-    }
-
-def parse_acl(text):
-    lines = [l for l in text.splitlines() if 'host' in l]
-    return map(parse_entry, lines)
-
 def make_rule(s, d, proto="ip", sp=None, dp=None):
     a = "host %s" % s 
     ap = sp and "eq %s" % sp or ""
@@ -52,14 +29,16 @@ class ACLMgr:
         self.seq = self.min + 1
         self.switch = Server( self.uri)
 
+        self.acl_hitcounts = {}
+
     def acl_exists(self, acl):
         cmds = [
             "enable",
             "show ip access-lists %s" % acl,
         ]
-        response = self.switch.runCmds(version=1, cmds=cmds, format='text')
-        acls = response[1]['output']
-        return bool(acls.strip())
+        response = self.switch.runCmds(version=1, cmds=cmds, format='json')
+        acls = response[1]['aclList']
+        return bool(acls)
 
     def port_has_acl(self, port, acl):
         cmds = [
@@ -113,17 +92,24 @@ class ACLMgr:
         ]
         for acl in self.acls:
             cmds.append("show ip access-lists %s" % acl)
-        response = self.switch.runCmds(version=1, cmds=cmds, format='text')
+        response = self.switch.runCmds(version=1, cmds=cmds, format='json')
         
         self.all_seqs = set()
         self.all_rules = set()
         self.total_acls = 0
         for acl, result in zip(self.acls, response[1:]):
-            acls = parse_acl(result['output'])
+            acls = result['aclList'][0]['sequence']
+
+            #save the acl name inside each record
+            #packetCount only exists if it is non-zero
+            for entry in acls:
+                entry['acl'] = acl
+                entry.setdefault('packetCount', 0)
+
             self.acls[acl] = acls
 
-            seqs  = set(x["seq"] for x in acls)
-            rules = set(x["rule"] for x in acls)
+            seqs  = set(x["sequenceNumber"] for x in acls)
+            rules = set(x["text"] for x in acls)
 
             self.all_seqs.update(seqs)
             self.all_rules.update(rules)
@@ -137,7 +123,7 @@ class ACLMgr:
             return
         for x in acls:
             x["op"] = op
-            self.logger.info('op=%(op)s acl=%(acl)s seq=%(seq)s rule="%(rule)s" matches=%(matches)s ago=%(ago)s' % x)
+            self.logger.info('op=%(op)s acl=%(acl)s seq=%(sequenceNumber)s rule="%(text)s" matches=%(packetCount)s' % x)
 
     def calc_next(self):
         for x in range(self.seq, self.max) + range(self.min, self.seq):
@@ -176,20 +162,29 @@ class ACLMgr:
         for acl, entries in to_remove.items():
             cmds.append("ip access-list %s" % acl)
             for r in entries:
-                cmds.append("no %s" % r['seq'])
+                cmds.append("no %s" % r['sequenceNumber'])
         self.logger.debug("Sending:" + "\n".join(cmds))
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
 
     def is_expired(self, acl):
-        if acl['seq'] <= self.min or acl['seq'] >= self.max:
+        if acl['sequenceNumber'] <= self.min or acl['sequenceNumber'] >= self.max:
             return False
-        if 'any any' in acl['rule']:
+        if 'any any' in acl['text']:
             return False
-        if acl['ago'] is None:
-            return True
 
-        return acl['ago'] > '0:01:00'
+        hit_key = (acl['acl'], acl['sequenceNumber'])
+        packet_count = acl['packetCount']
 
+        #have I checked this ACL before?
+        if hit_key in self.acl_hitcounts:
+            #If so, has the packet count stayed the same?
+            last_packet_count = self.acl_hitcounts[hit_key]
+            if packet_count == last_packet_count:
+                del self.acl_hitcounts[hit_key]
+                return True
+
+        self.acl_hitcounts[hit_key] = packet_count
+        return False
 
     def remove_expired(self):
         acls = self.refresh()
