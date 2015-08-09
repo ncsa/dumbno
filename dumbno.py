@@ -338,7 +338,7 @@ def launch(config, setup=False):
     svr = ACLSvr(mgr)
     svr.run()
 
-def run_stats(cfg_file, setup=False):
+def run_stats(config, setup=False):
     logger = get_logger()
     mgr = get_backend(logger, config)
     return mgr.stats_loop()
