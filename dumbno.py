@@ -314,6 +314,12 @@ def read_config(cfg_file):
 
     return config
 
+def get_logger():
+    format = '%(asctime)-15s %(levelname)s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=format)
+    logger = logging.getLogger("dumbno")
+    return logger
+
 def get_backend(logger, config):
     configured_backend = config.get("backend", DEFAULT_BACKEND)
     backend_class = BACKENDS[configured_backend]
@@ -323,9 +329,7 @@ def get_backend(logger, config):
     return backend_class(logger=logger, **config)
 
 def launch(config, setup=False):
-    format = '%(asctime)-15s %(levelname)s %(message)s'
-    logging.basicConfig(level=logging.INFO, format=format)
-    logger = logging.getLogger("dumbno")
+    logger = get_logger()
     logger.info("Started")
     mgr = get_backend(logger, config)
     if setup:
@@ -334,11 +338,8 @@ def launch(config, setup=False):
     svr = ACLSvr(mgr)
     svr.run()
 
-
 def run_stats(cfg_file, setup=False):
-    format = '%(asctime)-15s %(levelname)s %(message)s'
-    logging.basicConfig(level=logging.INFO, format=format)
-    logger = logging.getLogger("dumbno")
+    logger = get_logger()
     mgr = get_backend(logger, config)
     return mgr.stats_loop()
 
