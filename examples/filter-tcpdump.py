@@ -5,9 +5,6 @@
 """
 
 import sys
-import socket
-import json
-import time
 
 from dumbno import ACLClient
 def extract(conn):
