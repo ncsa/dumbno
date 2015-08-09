@@ -312,7 +312,7 @@ def run_stats(cfg_file, setup=False):
     mgr = ACLMgr(logger=logger, **config)
     return mgr.stats_loop()
 
-if __name__ == "__main__":
+def main():
     if len(sys.argv) < 2:
         sys.stderr.write("Usage: %s dumbno.ini [setup|stats]\n" % sys.argv[0])
         sys.exit(1)
@@ -326,3 +326,5 @@ if __name__ == "__main__":
     else:
         launch(config, setup=setup)
 
+if __name__ == "__main__":
+    main()
