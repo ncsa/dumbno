@@ -289,7 +289,7 @@ def read_config(cfg_file):
 
     return config
 
-def launch(config, setup=False, stats=False):
+def launch(config, setup=False):
     format = '%(asctime)-15s %(levelname)s %(message)s'
     logging.basicConfig(level=logging.INFO, format=format)
     logger = logging.getLogger("dumbno")
@@ -297,9 +297,6 @@ def launch(config, setup=False, stats=False):
     mgr = ACLMgr(logger=logger, **config)
     if setup:
         mgr.setup()
-
-    if stats:
-        return mgr.stats()
 
     svr = ACLSvr(mgr)
     svr.run()
