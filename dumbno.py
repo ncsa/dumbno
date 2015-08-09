@@ -16,7 +16,7 @@ def make_rule(s, d, proto="ip", sp=None, dp=None):
 
     return "%s %s %s %s %s" % (proto, a, ap, b, bp)
 
-class ACLMgr:
+class AristaACLManager:
     def __init__(self, ip, user, password, ports, egress_ports, logger):
         self.uri = "http://%s:%s@%s/command-api" % (user, password, ip)
         self.ports = ports
@@ -230,6 +230,31 @@ class ACLMgr:
 
             l_ibytes, l_ebytes = ibytes, ebytes
 
+class DummyACLManager:
+    def __init__(self, logger, *args, **kwargs):
+        self.logger = logger
+    
+    def setup(self):
+        self.logger.info("DummyACLManager: setup: doing nothing")
+
+    def add_acl(self, src, dst, proto="ip", sport=None, dport=None):
+        self.logger.info("DummyACLManager: add_acl: src=%s dst=%s proto=%s sport=%s dport=%s",
+                         src, dst, proto, sport, dport)
+        
+    def remove_expired(self):
+        self.logger.info("DummyACLManager: remove_expired: doing nothing")
+
+    def stats_loop(self, interval=5):
+        while True:
+            self.logger.info("DummyACLManager: stats_loop: doing nothing")
+            time.sleep(interval)
+
+BACKENDS = {
+    'arista': AristaACLManager,
+    'dummy':  DummyACLManager,
+}
+DEFAULT_BACKEND = 'arista'
+
 class ACLSvr:
     def __init__(self, mgr):
         self.mgr = mgr
@@ -289,12 +314,20 @@ def read_config(cfg_file):
 
     return config
 
+def get_backend(logger, config):
+    configured_backend = config.get("backend", DEFAULT_BACKEND)
+    backend_class = BACKENDS[configured_backend]
+    if 'backend' in config:
+        del config['backend']
+    logger.debug("Initializing backend with config: %r", config)
+    return backend_class(logger=logger, **config)
+
 def launch(config, setup=False):
     format = '%(asctime)-15s %(levelname)s %(message)s'
     logging.basicConfig(level=logging.INFO, format=format)
     logger = logging.getLogger("dumbno")
     logger.info("Started")
-    mgr = ACLMgr(logger=logger, **config)
+    mgr = get_backend(logger, config)
     if setup:
         mgr.setup()
 
@@ -306,7 +339,7 @@ def run_stats(cfg_file, setup=False):
     format = '%(asctime)-15s %(levelname)s %(message)s'
     logging.basicConfig(level=logging.INFO, format=format)
     logger = logging.getLogger("dumbno")
-    mgr = ACLMgr(logger=logger, **config)
+    mgr = get_backend(logger, config)
     return mgr.stats_loop()
 
 def main():
