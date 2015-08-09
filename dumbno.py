@@ -18,7 +18,7 @@ def make_rule(s, d, proto="ip", sp=None, dp=None):
 
 class ACLMgr:
     def __init__(self, ip, user, password, ports, egress_ports, logger):
-        self.uri = "https://%s:%s@%s/command-api" % (user, password, ip)
+        self.uri = "http://%s:%s@%s/command-api" % (user, password, ip)
         self.ports = ports
         self.egress_ports = egress_ports
         self.acls = dict.fromkeys(ports.values(), [])
