@@ -104,6 +104,7 @@ class AristaACLManager:
             #packetCount only exists if it is non-zero
             for entry in acls:
                 entry['acl'] = acl
+                entry['counterData'].setdefault('packetCount', 0)
 
             self.acls[acl] = acls
 
