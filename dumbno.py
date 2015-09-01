@@ -104,7 +104,6 @@ class AristaACLManager:
             #packetCount only exists if it is non-zero
             for entry in acls:
                 entry['acl'] = acl
-                entry.setdefault('packetCount', 0)
 
             self.acls[acl] = acls
 
@@ -122,7 +121,8 @@ class AristaACLManager:
         if not acls:
             return
         for x in acls:
-            x["op"] = op
+            x['op'] = op
+            x['packetCount'] = x['counterData']['packetCount']
             self.logger.info('op=%(op)s acl=%(acl)s seq=%(sequenceNumber)s rule="%(text)s" matches=%(packetCount)s' % x)
 
     def calc_next(self):
@@ -173,7 +173,7 @@ class AristaACLManager:
             return False
 
         hit_key = (acl['acl'], acl['sequenceNumber'])
-        packet_count = acl['packetCount']
+        packet_count = acl['counterData']['packetCount']
 
         #have I checked this ACL before?
         if hit_key in self.acl_hitcounts:
