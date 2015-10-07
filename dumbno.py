@@ -4,6 +4,7 @@ import time
 import json
 import sys
 import logging
+import logging.handlers
 import ConfigParser
 
 
@@ -315,11 +316,16 @@ def read_config(cfg_file):
 
     return config
 
-def get_logger():
-    format = '%(asctime)-15s %(levelname)s %(message)s'
-    logging.basicConfig(level=logging.INFO, format=format)
-    logger = logging.getLogger("dumbno")
+def get_logger(name="dumbno"):
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(name)
+    formatter = logging.Formatter('%(name)s: %(levelname)s %(message)s')
+    handler = logging.handlers.SysLogHandler(address='/dev/log')
+    handler.setFormatter(formatter)
+    handler.setLevel(logging.INFO)
+    logger.addHandler(handler)
     return logger
+
 
 def get_backend(logger, config):
     configured_backend = config.get("backend", DEFAULT_BACKEND)
@@ -340,7 +346,7 @@ def launch(config, setup=False):
     svr.run()
 
 def run_stats(config, setup=False):
-    logger = get_logger()
+    logger = get_logger("dumbno_stats")
     mgr = get_backend(logger, config)
     return mgr.stats_loop()
 
