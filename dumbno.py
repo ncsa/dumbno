@@ -15,7 +15,8 @@ def make_rule(s, d, proto="ip", sp=None, dp=None):
     b = "host %s" % d
     bp = dp and "eq %s" % dp or ""
 
-    return "%s %s %s %s %s" % (proto, a, ap, b, bp)
+    rule = "%s %s %s %s %s" % (proto, a, ap, b, bp)
+    return rule.strip()
 
 class AristaACLManager:
     def __init__(self, ip, user, password, ports, egress_ports, logger):
