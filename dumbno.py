@@ -16,7 +16,7 @@ def make_rule(s, d, proto="ip", sp=None, dp=None):
     bp = dp and "eq %s" % dp or ""
 
     rule = "%s %s %s %s %s" % (proto, a, ap, b, bp)
-    return rule.strip()
+    return rule.replace("  ", " ").strip()
 
 class AristaACLManager:
     def __init__(self, ip, user, password, ports, egress_ports, logger):
