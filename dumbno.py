@@ -6,7 +6,7 @@ import sys
 import logging
 import logging.handlers
 import ConfigParser
-
+import gc
 
 def make_rule(s, d, proto="ip", sp=None, dp=None):
     a = "host %s" % s 
@@ -232,6 +232,8 @@ class AristaACLManager:
             self.logger.info("mbps: in=%d out=%d filtered=%d", ibw, ebw, ibw-ebw)
 
             l_ibytes, l_ebytes = ibytes, ebytes
+
+            gc.collect()
 
 class DummyACLManager:
     def __init__(self, logger, *args, **kwargs):
