@@ -1,4 +1,4 @@
-from jsonrpclib import Server
+from jsonrpclib import Server, history as jsonrpclib_history
 import socket
 import time
 import json
@@ -6,7 +6,6 @@ import sys
 import logging
 import logging.handlers
 import ConfigParser
-import gc
 
 def make_rule(s, d, proto="ip", sp=None, dp=None):
     a = "host %s" % s 
@@ -233,7 +232,7 @@ class AristaACLManager:
 
             l_ibytes, l_ebytes = ibytes, ebytes
 
-            gc.collect()
+            jsonrpclib_history.clear()
 
 class DummyACLManager:
     def __init__(self, logger, *args, **kwargs):
@@ -276,6 +275,7 @@ class ACLSvr:
     def run(self):
         self.mgr.logger.info("Ready..")
         while True:
+            jsonrpclib_history.clear()
             self.check()
             sys.stdout.flush()
 
