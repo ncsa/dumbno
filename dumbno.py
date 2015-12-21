@@ -7,11 +7,11 @@ import logging
 import logging.handlers
 import ConfigParser
 
-def make_rule(s, d, proto="ip", sp=None, dp=None):
+def make_rule(s, d=None, proto="ip", sp=None, dp=None):
     a = "host %s" % s 
     ap = sp and "eq %s" % sp or ""
 
-    b = "host %s" % d
+    b = d and "host %s" % d or "any"
     bp = dp and "eq %s" % dp or ""
 
     rule = "%s %s %s %s %s" % (proto, a, ap, b, bp)
@@ -134,7 +134,7 @@ class AristaACLManager:
                 return x
         raise Exception("Too many ACLS?")
 
-    def add_acl(self, src, dst, proto="ip", sport=None, dport=None):
+    def add_acl(self, src, dst=None, proto="ip", sport=None, dport=None):
         rule = make_rule(src, dst, proto, sport, dport)
 
         if rule in self.all_rules:
@@ -294,7 +294,7 @@ class ACLClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(1)
     
-    def add_acl(self, src, dst, proto="ip", sport=None, dport=None):
+    def add_acl(self, src, dst=None, proto="ip", sport=None, dport=None):
         msg = json.dumps(dict(src=src,dst=dst,proto=proto,sport=sport,dport=dport))
         self.sock.sendto(msg, self.addr)
         try :
