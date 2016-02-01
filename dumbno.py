@@ -6,6 +6,7 @@ import sys
 import logging
 import logging.handlers
 import ConfigParser
+import iptools
 
 def make_rule(s, d=None, proto="ip", sp=None, dp=None):
     a = "host %s" % s 
@@ -22,9 +23,18 @@ class AristaACLManager:
         self.uri = "http://%s:%s@%s/command-api" % (user, password, ip)
         self.ports = ports
         self.egress_ports = egress_ports
-        self.acls = dict.fromkeys(ports.values(), [])
-        self.logger = logger
 
+        # Enable V6
+        self.families = set(['ip', 'ipv6'])
+        #self.families = set(['ip'])
+        self.acls = {};
+
+        # Build acls list from names in config and family list.
+        for family in self.families:
+            for port in ports.values():
+                self.acls[(port,family)] = []
+
+        self.logger = logger
         self.min = 500
         self.max = 100000
         self.seq = self.min + 1
@@ -32,82 +42,87 @@ class AristaACLManager:
 
         self.acl_hitcounts = {}
 
-    def acl_exists(self, acl):
+    def acl_exists(self, acl, family):
         cmds = [
             "enable",
-            "show ip access-lists %s" % acl,
+            "show %s access-lists %s" % (family,acl),
         ]
         response = self.switch.runCmds(version=1, cmds=cmds, format='json')
         acls = response[1]['aclList']
         return bool(acls)
 
-    def port_has_acl(self, port, acl):
+    def port_has_acl(self, port, acl, family):
         cmds = [
             "enable",
             "show running-config interfaces %s" % port,
         ]
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
         output = response[1]['output']
-        expected_line = 'access-group %s in' % acl
+        expected_line = '%s access-group %s in' % (family,acl)
         return expected_line in output
 
-    def setup_acl(self,  acl):
-        if self.acl_exists(acl):
+    def setup_acl(self,  acl, family):
+
+        if self.acl_exists(acl,family):
             return True
 
-        self.logger.info("Setting up ACL %s", acl)
+        self.logger.info("Setting up %s ACL %s", family,acl)
         cmds = [
             "enable",
             "configure",
-            "ip access-list %s" % acl,
+            "%s access-list %s" % (family,acl),
             "statistics per-entry",
             "10 permit tcp any any fin",
             "20 permit tcp any any syn",
             "30 permit tcp any any rst",
-            "100001 permit ip any any",
+            "100001 permit %s any any" % family,
         ]
         response = self.switch.runCmds(version=1, cmds=cmds)
 
-    def setup_port_acl(self, port, acl):
-        self.setup_acl(acl)
-        if self.port_has_acl(port, acl):
+    def setup_port_acl(self, port, acl, family):
+        self.setup_acl(acl, family)
+        if self.port_has_acl(port, acl, family):
             return True
 
-        self.logger.info("Setting up ACL %s for port %s", acl, port)
+        self.logger.info("Setting up %s ACL %s for port %s", family, acl, port)
         cmds = [
             "enable",
             "configure",
             "interface %s" % port,
-            "ip access-group %s in" % acl,
+            "%s access-group %s in" % (family,acl),
         ]
         response = self.switch.runCmds(version=1, cmds=cmds)
 
     def setup(self):
         self.logger.info("Setup...")
-        for port, acl in self.ports.items():
-            self.setup_port_acl(port, acl)
+        for family in self.families:
+            for port, acl in self.ports.items():
+                self.setup_port_acl(port, acl, family)
 
     def refresh(self):
-        cmds = [
-            "enable",
-        ]
-        for acl in self.acls:
-            cmds.append("show ip access-lists %s" % acl)
-        response = self.switch.runCmds(version=1, cmds=cmds, format='json')
-        
         self.all_seqs = set()
         self.all_rules = set()
-        self.total_acls = 0
-        for acl, result in zip(self.acls, response[1:]):
+        self.total_acls = 0 
+
+        cmds = [
+           "enable",
+        ]
+
+        for (acl,family) in self.acls:
+            cmds.append("show %s access-lists %s" % (family,acl))
+        response = self.switch.runCmds(version=1, cmds=cmds, format='json')
+      
+        for (acl, family), result in zip(self.acls, response[1:]):
             acls = result['aclList'][0]['sequence']
 
             #save the acl name inside each record
             #packetCount only exists if it is non-zero
             for entry in acls:
                 entry['acl'] = acl
+                entry['family'] = family
                 entry['counterData'].setdefault('packetCount', 0)
 
-            self.acls[acl] = acls
+            self.acls[acl, family] = acls
 
             seqs  = set(x["sequenceNumber"] for x in acls)
             rules = set(x["text"] for x in acls)
@@ -125,7 +140,7 @@ class AristaACLManager:
         for x in acls:
             x['op'] = op
             x['packetCount'] = x['counterData']['packetCount']
-            self.logger.info('op=%(op)s acl=%(acl)s seq=%(sequenceNumber)s rule="%(text)s" matches=%(packetCount)s' % x)
+            self.logger.info('op=%(op)s acl=%(acl)s family=%(family)s seq=%(sequenceNumber)s rule="%(text)s" matches=%(packetCount)s' % x)
 
     def calc_next(self):
         for x in range(self.seq, self.max) + range(self.min, self.seq):
@@ -144,12 +159,14 @@ class AristaACLManager:
             "enable",
             "configure",
         ]
+
         self.seq = self.calc_next()
-        for acl in self.acls:
-            cmds.extend([
-                "ip access-list %s" % acl,
-                "%d deny %s" % (self.seq, rule),
-            ])
+        for (acl,family) in self.acls:
+            if (iptools.ipv4.validate_ip(src) and family == 'ip') or (iptools.ipv6.validate_ip(src) and family == 'ipv6'):
+                cmds.extend([
+                    "%s access-list %s" % (family,acl),
+                    "%d deny %s" % (self.seq, rule),
+                ])
         self.logger.info("op=ADD seq=%s rule=%r" % (self.seq, rule))
         response = self.switch.runCmds(version=1, cmds=cmds, format='text')
         self.all_rules.add(rule)
@@ -161,8 +178,12 @@ class AristaACLManager:
             "enable",
             "configure",
         ]
-        for acl, entries in to_remove.items():
-            cmds.append("ip access-list %s" % acl)
+            
+        # This could be more efficient in the commands we issue to the Arista
+        # by grouping rules per acl,family, but we usually don't seen that many
+        # at a time anyway.
+        for (acl,family), entries in to_remove.items():
+            cmds.append("%s access-list %s" % (family,acl))
             for r in entries:
                 cmds.append("no %s" % r['sequenceNumber'])
         self.logger.debug("Sending:" + "\n".join(cmds))
@@ -174,6 +195,8 @@ class AristaACLManager:
         if 'any any' in acl['text']:
             return False
 
+# DOP: I don't think hit_key needs 'family' since the sequencenumber should be unique.
+#      This may impact removals, need more rigorous testing.
         hit_key = (acl['acl'], acl['sequenceNumber'])
         packet_count = acl['counterData']['packetCount']
 
@@ -190,14 +213,15 @@ class AristaACLManager:
 
     def remove_expired(self):
         acls = self.refresh()
-
         to_remove = {}
         to_remove_flat = []
-        for acl, entries in acls.items():
+
+        for (acl,family), entries in acls.items():
             removable = filter(self.is_expired, entries)
             for entry in removable:
                 entry['acl'] = acl
-            to_remove[acl] = removable
+                entry['family'] = family
+            to_remove[acl,family] = removable
             to_remove_flat.extend(removable)
 
         self.dump(to_remove_flat, op="REMOVE")
