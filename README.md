@@ -48,3 +48,14 @@ About Configuring Port mapping
 Using a single ACL shared by all ingress ports limits the total number of
 entries you can have.  If you have a lot of ingress ports map them to
 distinct ACLS which will distribute the entries across TCAM.
+
+IPv6 Support
+============
+
+If you are using conn-bulk.bro, you also need to make sure the IPv6 ranges
+are included in the 'hosts' table:
+
+    const hosts: table[subnet] of PortRange = {[0.0.0.0/0] = PortRange(),
+                                               [[::]/0] = PortRange()} &redef;
+
+
