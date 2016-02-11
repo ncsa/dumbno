@@ -1,6 +1,6 @@
 from nose.tools import eq_
 
-from dumbno import make_rule
+from dumbno import make_rule, ip_family
 
 def _make_rule_test_case(output, kwargs):
     eq_(output, make_rule(**kwargs))
@@ -16,3 +16,16 @@ def test_make_rule():
     ]
     for expected, kwargs in cases:
         yield _make_rule_test_case, expected, kwargs
+
+def _ip_family_test_case(ip, expected):
+    eq_(expected, ip_family(ip))
+
+def testip_family():
+    cases = [
+        ("1.2.3.4", "ip"),
+        ("2601:a6:2000:3712:8a2:ce2e:25db:2aa1", "ipv6"),
+        ("1.2.3.4.5", None),
+        ("foo", None),
+    ]
+    for ip, expected in cases:
+        yield _ip_family_test_case, ip, expected
