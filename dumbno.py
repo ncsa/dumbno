@@ -111,7 +111,7 @@ class AristaACLManager:
     def setup(self):
         self.logger.info("Setup...")
 
-        for family in self.families:
+        for family in self.acls_by_family:
             for port, acl in self.ports.items():
                 self.setup_port_acl(port, ACL(acl, family))
 
@@ -153,8 +153,8 @@ class AristaACLManager:
             return
         for x in acls:
             x['op'] = op
-            x['name'] = x['acl']['name']
-            x['family'] = x['acl']['family']
+            x['name'] = x['acl'].name
+            x['family'] = x['acl'].family
             x['packetCount'] = x['counterData']['packetCount']
             self.logger.info('op=%(op)s acl=%(name)s family=%(family)s seq=%(sequenceNumber)s rule="%(text)s" matches=%(packetCount)s' % x)
 
