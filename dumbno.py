@@ -222,11 +222,15 @@ class AristaACLManager:
         self.logger.info("total gigs: in=%d out=%d filtered=%d", l_ibytes/gig, l_ebytes/gig, (l_ibytes-l_ebytes)/gig)
 
         while True:
+            last = time.time()
             time.sleep(interval)
             ibytes, ebytes = self.get_stats()
+            now = time.time()
 
-            ibw = (ibytes - l_ibytes) *8 / interval / 1024 / 1024
-            ebw = (ebytes - l_ebytes) *8 / interval / 1024 / 1024
+            actual_interval = (now - last)
+
+            ibw = (ibytes - l_ibytes) *8 / actual_interval / 1024 / 1024
+            ebw = (ebytes - l_ebytes) *8 / actual_interval / 1024 / 1024
 
             self.logger.info("mbps: in=%d out=%d filtered=%d", ibw, ebw, ibw-ebw)
 
