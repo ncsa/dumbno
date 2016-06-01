@@ -269,6 +269,7 @@ class ACLSvr:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('', 9000))
         self.sock.settimeout(5)
+        self.sock.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,1024)
         self.last_check = 0
 
     def check(self):
