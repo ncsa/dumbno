@@ -1,1 +1,1 @@
-jsonrpclib
+jsonrpclib==0.1.7
