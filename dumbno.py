@@ -34,8 +34,8 @@ def make_rule(s, d=None, proto="ip", sp=None, dp=None):
 ACL = namedtuple("ACL", "name family")
 
 class AristaACLManager:
-    def __init__(self, ip, user, password, ports, egress_ports, logger):
-        self.uri = "http://%s:%s@%s/command-api" % (user, password, ip)
+    def __init__(self, scheme, ip, user, password, ports, egress_ports, logger):
+        self.uri = "%s://%s:%s@%s/command-api" % (scheme, user, password, ip)
         self.ports = ports
         self.egress_ports = egress_ports
 
@@ -381,6 +381,7 @@ def get_backend(logger, config):
     backend_class = BACKENDS[configured_backend]
     if 'backend' in config:
         del config['backend']
+    config.setdefault('scheme', 'https')
     logger.debug("Initializing backend with config: %r", config)
     return backend_class(logger=logger, **config)
 
