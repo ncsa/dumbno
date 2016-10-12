@@ -34,10 +34,11 @@ def make_rule(s, d=None, proto="ip", sp=None, dp=None):
 ACL = namedtuple("ACL", "name family")
 
 class AristaACLManager:
-    def __init__(self, scheme, ip, user, password, ports, egress_ports, logger):
+    def __init__(self, scheme, ip, user, password, ports, egress_ports, logger, two_tuple_hosts):
         self.uri = "%s://%s:%s@%s/command-api" % (scheme, user, password, ip)
         self.ports = ports
         self.egress_ports = egress_ports
+        self.two_tuple_hosts = two_tuple_hosts or set()
 
         # Enable V6
         self.acls = {}
@@ -165,6 +166,12 @@ class AristaACLManager:
                 return x
         raise Exception("Too many ACLS?")
 
+    def modify_record(self, record):
+        tt = self.two_tuple_hosts
+        if record['src'] in tt or record['dst'] in tt:
+            record['sport'] = record['dport'] = None
+        return record
+
     def add_acl(self, src, dst=None, proto="ip", sport=None, dport=None):
         cmdfamily = ip_family(src)
         if cmdfamily is None:
@@ -286,6 +293,9 @@ class DummyACLManager:
     def setup(self):
         self.logger.info("DummyACLManager: setup: doing nothing")
 
+    def modify_record(self, record):
+        return record
+
     def add_acl(self, src, dst, proto="ip", sport=None, dport=None):
         self.logger.info("DummyACLManager: add_acl: src=%s dst=%s proto=%s sport=%s dport=%s",
                          src, dst, proto, sport, dport)
@@ -331,6 +341,7 @@ class ACLSvr:
                 continue
 
             record = json.loads(data)
+            record = self.mgr.modify_record(record)
             self.mgr.add_acl(**record)
             self.sock.sendto("ok", addr)
 
@@ -362,6 +373,9 @@ def read_config(cfg_file):
     config["egress_ports"] = []
     if cfg.has_section('egress_ports'):
         config["egress_ports"] = dict(cfg.items('egress_ports'))
+    config['two_tuple_hosts'] = set()
+    if cfg.has_section('two_tuple_hosts'):
+        config['two_tuple_hosts'] = set(cfg.options('two_tuple_hosts'))
 
     return config
 
