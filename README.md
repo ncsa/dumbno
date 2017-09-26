@@ -41,14 +41,6 @@ A rule that had activity will look like this:
 
     2014-04-28 11:21:32,983 INFO op=REMOVE acl=bulk_2 seq=729 rule="tcp host 192.168.1.2 eq 39329 host 192.168.1.1 eq 39032" matches=359 ago=0:01:22
 
-
-About Configuring Port mapping
-===============================
-
-Using a single ACL shared by all ingress ports limits the total number of
-entries you can have.  If you have a lot of ingress ports map them to
-distinct ACLS which will distribute the entries across TCAM.
-
 IPv6 Support
 ============
 
