@@ -48,8 +48,9 @@ class AristaACLManager:
         for family in self.acls_by_family:
             for name in ports.values():
                 new_acl = ACL(name, family)
-                self.acls[new_acl] = []
-                self.acls_by_family[family].append(new_acl)
+                if new_acl not in self.acls:
+                    self.acls[new_acl] = []
+                    self.acls_by_family[family].append(new_acl)
 
         self.logger = logger
         self.min = 500
