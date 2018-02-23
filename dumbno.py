@@ -204,6 +204,12 @@ class AristaACLManager:
         if rule in self.all_rules:
             return False
 
+        cmdfamily = 'ip'
+        if src or dst:
+            cmdfamily = ip_family(src or dst)
+        elif proto in ('ip', 'ipv6'):
+            cmdfamily = proto
+
         cmds = [
             "enable",
             "configure",

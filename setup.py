@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='dumbno',
-    version='0.8.0',
+    version='0.8.1',
     zip_safe=True,
     py_modules = ["dumbno"],
     install_requires=[
