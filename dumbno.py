@@ -8,6 +8,9 @@ import logging.handlers
 import ConfigParser
 from collections import namedtuple
 
+class InvalidRequest(Exception):
+    pass
+
 def ip_family(ip):
     try :
         socket.inet_pton(socket.AF_INET, ip)
@@ -21,14 +24,36 @@ def ip_family(ip):
     except socket.error:
         return None
 
-def make_rule(s, d=None, proto="ip", sp=None, dp=None):
-    a = "host %s" % s 
-    ap = sp and "eq %s" % sp or ""
+def make_rule_fragment(protocol, host, port):
+    if protocol.startswith("ip") and port:
+        raise InvalidRequest("Can not match on ports in ip based rules, host=%s port=%s" % (host, port))
 
-    b = d and "host %s" % d or "any"
-    bp = dp and "eq %s" % dp or ""
+    a = ("host %s" % host) if host else "any"
+    #ip based ACL, no ports
+    if protocol.startswith("ip"):
+        return a
+    port_wildcard = "any" if host else ""
+    ap = ("eq %s" % port) if port else port_wildcard
 
-    rule = "%s %s %s %s %s" % (proto, a, ap, b, bp)
+    return a + " " + ap
+
+
+def make_rule(s=None, d=None, proto="ip", sp=None, dp=None):
+    if not (s or d or sp or dp):
+        raise InvalidRequest("Ignoring request to drop all traffic")
+    one_ip = s or d
+    if one_ip:
+        cmdfamily = ip_family(one_ip)
+        if cmdfamily is None:
+            raise InvalidRequest("src IP not v4 or v6: %s" % one_ip)
+
+    if proto == "ip" and cmdfamily == "ipv6":
+        proto = "ipv6"
+
+    a = make_rule_fragment(proto, s, sp)
+    b = make_rule_fragment(proto, d, dp)
+
+    rule = "%s %s %s" % (proto, a, b)
     return rule.replace("  ", " ").strip()
 
 ACL = namedtuple("ACL", "name family")
@@ -173,15 +198,7 @@ class AristaACLManager:
             record['sport'] = record['dport'] = None
         return record
 
-    def add_acl(self, src, dst=None, proto="ip", sport=None, dport=None):
-        cmdfamily = ip_family(src)
-        if cmdfamily is None:
-            self.logger.error("src IP not v4 or v6: %s", src)
-            return False
-
-        if proto == "ip" and cmdfamily == "ipv6":
-            proto = "ipv6"
-
+    def add_acl(self, src=None, dst=None, proto="ip", sport=None, dport=None):
         rule = make_rule(src, dst, proto, sport, dport)
 
         if rule in self.all_rules:
@@ -298,8 +315,9 @@ class DummyACLManager:
         return record
 
     def add_acl(self, src, dst, proto="ip", sport=None, dport=None):
-        self.logger.info("DummyACLManager: add_acl: src=%s dst=%s proto=%s sport=%s dport=%s",
-                         src, dst, proto, sport, dport)
+        rule = make_rule(src, dst, proto, sport, dport)
+        self.logger.info("DummyACLManager: add_acl: src=%s dst=%s proto=%s sport=%s dport=%s. Generated acl=%s",
+                         src, dst, proto, sport, dport, rule)
         
     def remove_expired(self):
         self.logger.info("DummyACLManager: remove_expired: doing nothing")
@@ -343,8 +361,12 @@ class ACLSvr:
 
             record = json.loads(data)
             record = self.mgr.modify_record(record)
-            self.mgr.add_acl(**record)
-            self.sock.sendto("ok", addr)
+            try:
+                self.mgr.add_acl(**record)
+                self.sock.sendto("ok", addr)
+            except InvalidRequest as e:
+                self.mgr.logger.exception("Invalid request")
+                self.sock.sendto("error: %s" % e, addr)
 
 class ACLClient:
     def __init__(self, host, port=9000):
@@ -384,7 +406,7 @@ def get_logger(name="dumbno"):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(name)
     formatter = logging.Formatter('%(name)s: %(levelname)s %(message)s')
-    handler = logging.handlers.SysLogHandler(address='/dev/log')
+    handler = logging.handlers.SysLogHandler()#address='/dev/log')
     handler.setFormatter(formatter)
     handler.setLevel(logging.INFO)
     logger.addHandler(handler)

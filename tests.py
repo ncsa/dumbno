@@ -11,8 +11,16 @@ def test_make_rule():
             dict(s="1.2.3.4")),
         ('ip host 1.2.3.4 host 5.6.7.8',
             dict(s="1.2.3.4", d="5.6.7.8")),
-        ('ip host 1.2.3.4 eq 123 host 5.6.7.8 eq 567',
-            dict(s="1.2.3.4", d="5.6.7.8", sp=123, dp=567)),
+        ('tcp host 1.2.3.4 eq 123 host 5.6.7.8 eq 567',
+            dict(s="1.2.3.4", d="5.6.7.8", sp=123, dp=567, proto='tcp')),
+        ('tcp host 1.2.3.4 any host 5.6.7.8 eq 567',
+            dict(s="1.2.3.4", d="5.6.7.8", dp=567, proto='tcp')),
+        ('tcp any host 5.6.7.8 eq 567',
+            dict(d="5.6.7.8", dp=567, proto='tcp')),
+        ('ip any host 5.6.7.8',
+            dict(d="5.6.7.8")),
+        ('tcp any any eq 567',
+            dict(dp='567', proto='tcp')),
     ]
     for expected, kwargs in cases:
         yield _make_rule_test_case, expected, kwargs
