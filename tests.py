@@ -13,7 +13,7 @@ def test_make_rule():
             dict(s="1.2.3.4", d="5.6.7.8")),
         ('tcp host 1.2.3.4 eq 123 host 5.6.7.8 eq 567',
             dict(s="1.2.3.4", d="5.6.7.8", sp=123, dp=567, proto='tcp')),
-        ('tcp host 1.2.3.4 any host 5.6.7.8 eq 567',
+        ('tcp host 1.2.3.4 host 5.6.7.8 eq 567',
             dict(s="1.2.3.4", d="5.6.7.8", dp=567, proto='tcp')),
         ('tcp any host 5.6.7.8 eq 567',
             dict(d="5.6.7.8", dp=567, proto='tcp')),

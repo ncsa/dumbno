@@ -32,8 +32,7 @@ def make_rule_fragment(protocol, host, port):
     #ip based ACL, no ports
     if protocol.startswith("ip"):
         return a
-    port_wildcard = "any" if host else ""
-    ap = ("eq %s" % port) if port else port_wildcard
+    ap = ("eq %s" % port) if port else ""
 
     return a + " " + ap
 
