@@ -5,7 +5,7 @@ setup(name='dumbno',
     zip_safe=True,
     py_modules = ["dumbno"],
     install_requires=[
-        "jsonrpclib==0.1.7",
+        "jsonrpclib-pelix==0.4.0",
     ],
     entry_points = {
         'console_scripts': [

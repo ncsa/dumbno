@@ -1,4 +1,4 @@
-from jsonrpclib import Server, history as jsonrpclib_history
+from jsonrpclib import Server
 import socket
 import time
 import json
@@ -83,7 +83,7 @@ class AristaACLManager:
         self.min = 500
         self.max = 100000
         self.seq = self.min + 1
-        self.switch = Server( self.uri)
+        self.switch = Server(self.uri)
 
         self.acl_hitcounts = {}
 
@@ -309,7 +309,6 @@ class AristaACLManager:
             self.logger.info("mbps: in=%d out=%d filtered=%d", ibw, ebw, ibw-ebw)
 
             l_ibytes, l_ebytes = ibytes, ebytes
-            jsonrpclib_history.clear()
 
 class DummyACLManager:
     def __init__(self, logger, *args, **kwargs):
@@ -357,7 +356,6 @@ class ACLSvr:
     def run(self):
         self.mgr.logger.info("Ready..")
         while True:
-            jsonrpclib_history.clear()
             self.check()
             sys.stdout.flush()
 

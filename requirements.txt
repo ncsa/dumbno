@@ -1,1 +1,1 @@
-jsonrpclib==0.1.7
+jsonrpclib-pelix==0.4.0
