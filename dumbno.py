@@ -5,8 +5,11 @@ import json
 import sys
 import logging
 import logging.handlers
-import ConfigParser
 from collections import namedtuple
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 
 class InvalidRequest(Exception):
     pass
@@ -144,7 +147,7 @@ class AristaACLManager:
     def refresh(self):
         self.all_seqs = set()
         self.all_rules = set()
-        self.total_acls = 0 
+        self.total_acls = 0
 
         cmds = [
             "enable",
@@ -152,7 +155,7 @@ class AristaACLManager:
         for acl in self.acls:
             cmds.append("show %s access-lists %s" % (acl.family, acl.name))
         response = self.switch.runCmds(version=1, cmds=cmds, format='json')
-      
+
         for acl, result in zip(self.acls, response[1:]):
             acls = result['aclList'][0]['sequence']
 
@@ -185,7 +188,7 @@ class AristaACLManager:
             self.logger.info('op=%(op)s acl=%(name)s family=%(family)s seq=%(sequenceNumber)s rule="%(text)s" matches=%(packetCount)s' % x)
 
     def calc_next(self):
-        for x in range(self.seq, self.max) + range(self.min, self.seq):
+        for x in list(range(self.seq, self.max)) + list(range(self.min, self.seq)):
             if x % 2 == 0: continue #i want an odd number
             if x not in self.all_seqs:
                 return x
@@ -268,7 +271,7 @@ class AristaACLManager:
         to_remove_flat = []
 
         for acl, entries in acls.items():
-            removable = filter(self.is_expired, entries)
+            removable = list(filter(self.is_expired, entries))
             to_remove[acl] = removable
             to_remove_flat.extend(removable)
 
@@ -303,7 +306,6 @@ class AristaACLManager:
 
             ibw = (ibytes - l_ibytes) *8 / actual_interval / 1024 / 1024
             ebw = (ebytes - l_ebytes) *8 / actual_interval / 1024 / 1024
-
             self.logger.info("mbps: in=%d out=%d filtered=%d", ibw, ebw, ibw-ebw)
 
             l_ibytes, l_ebytes = ibytes, ebytes
@@ -312,7 +314,7 @@ class AristaACLManager:
 class DummyACLManager:
     def __init__(self, logger, *args, **kwargs):
         self.logger = logger
-    
+
     def setup(self):
         self.logger.info("DummyACLManager: setup: doing nothing")
 
@@ -323,7 +325,7 @@ class DummyACLManager:
         rule = make_rule(src, dst, proto, sport, dport)
         self.logger.info("DummyACLManager: add_acl: src=%s dst=%s proto=%s sport=%s dport=%s. Generated acl=%s",
                          src, dst, proto, sport, dport, rule)
-        
+
     def remove_expired(self):
         self.logger.info("DummyACLManager: remove_expired: doing nothing")
 
@@ -368,7 +370,7 @@ class ACLSvr:
             record = self.mgr.modify_record(record)
             try:
                 self.mgr.add_acl(**record)
-                self.sock.sendto("ok", addr)
+                self.sock.sendto(b"ok", addr)
             except InvalidRequest as e:
                 self.mgr.logger.exception("Invalid request")
                 self.sock.sendto("error: %s" % e, addr)
@@ -378,7 +380,7 @@ class ACLClient:
         self.addr = (host, port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(1)
-    
+
     def add_acl(self, src, dst=None, proto="ip", sport=None, dport=None):
         msg = json.dumps(dict(src=src,dst=dst,proto=proto,sport=sport,dport=dport))
         self.sock.sendto(msg, self.addr)
@@ -389,7 +391,7 @@ class ACLClient:
             return None
 
 def read_config(cfg_file):
-    cfg = ConfigParser.ConfigParser()
+    cfg = configparser.ConfigParser()
     cfg.optionxform=str
     read = cfg.read([cfg_file])
     if not read:
