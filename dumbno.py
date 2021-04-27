@@ -115,7 +115,7 @@ class AristaACLManager:
             "enable",
             "configure",
             "%s access-list %s" % (acl.family, acl.name),
-            "statistics per-entry",
+            "counters per-entry",
             "10 permit tcp any any fin",
             "20 permit tcp any any syn",
             "30 permit tcp any any rst",
